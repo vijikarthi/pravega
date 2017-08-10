@@ -264,6 +264,8 @@ resource "aws_instance" "boot" {
       "sudo apt-get install -y software-properties-common",
       "sudo apt-get install -y ansible",
       "sudo apt-get install -y git",
+      "sudo apt-get install -y npm",
+      "sudo apt-get install -y nodejs",
       "cd /tmp && git clone https://github.com/pravega/pravega.git && cd pravega/",
       "sudo add-apt-repository ppa:openjdk-r/ppa -y && sudo apt-get -y update && sudo apt-get install -y openjdk-8-jdk",
       "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64 && ./gradlew distTar && mv build/distributions/pravega*.tgz /home/ubuntu/data/pravega-0.1.0-SNAPSHOT.tgz",

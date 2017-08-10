@@ -40,6 +40,8 @@ sed -i 's|# zkLedgersRootPath=/ledgers|zkLedgersRootPath='${BK_LEDGERS_PATH}'|' 
 
 sed -i '/autoRecoveryDaemonEnabled/d' /opt/bk_all/bookkeeper-server-4.4.0/conf/bk_server.conf
 echo autoRecoveryDaemonEnabled=${BK_AUTORECOVERY} >> /opt/bk_all/bookkeeper-server-4.4.0/conf/bk_server.conf
+sed -i '/journalAdaptiveGroupWrites/d' /opt/bk_all/bookkeeper-server-4.4.0/conf/bk_server.conf
+echo journalAdaptiveGroupWrites=false >> /opt/bk_all/bookkeeper-server-4.4.0/conf/bk_server.conf
 
 echo "wait for zookeeper"
 until /opt/zk/zookeeper-3.5.1-alpha/bin/zkCli.sh -server $ZK_URL ls /; do sleep 2; done
