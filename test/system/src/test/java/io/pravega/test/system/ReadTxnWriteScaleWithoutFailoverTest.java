@@ -7,6 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  */
+
 package io.pravega.test.system;
 
 import io.pravega.client.ClientFactory;
@@ -28,6 +29,16 @@ import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
+import lombok.extern.slf4j.Slf4j;
+import mesosphere.marathon.client.MarathonException;
+import org.junit.After;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.Timeout;
+import org.junit.runner.RunWith;
+
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Collections;
@@ -37,36 +48,24 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
-import lombok.extern.slf4j.Slf4j;
-import mesosphere.marathon.client.MarathonException;
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Ignore;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.Timeout;
-import org.junit.runner.RunWith;
 
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-@Ignore
-public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
+public class ReadTxnWriteScaleWithoutFailoverTest extends AbstractFailoverTests {
 
-    private static final int NUM_WRITERS = 5;
     private static final int NUM_READERS = 5;
-
+    private static final int NUM_WRITERS = 5;
     //The execution time for @Before + @After + @Test methods should be less than 25 mins. Else the test will timeout.
     @Rule
     public Timeout globalTimeout = Timeout.seconds(25 * 60);
-
-    private final String scope = "testReadWriteAndScaleScope" + new Random().nextInt(Integer.MAX_VALUE);
-    private final String readerGroupName = "testReadWriteAndScaleReaderGroup" + new Random().nextInt(Integer.MAX_VALUE);
+    private final String scope = "testReadTxnWriteScaleScope2" + new Random().nextInt(Integer.MAX_VALUE);
+    private final String stream = "testReadTxnWriteScaleStream2";
+    private final String readerGroupName = "testReadTxnWriteScaleReaderGroup2" + new Random().nextInt(Integer.MAX_VALUE);
     private final ScalingPolicy scalingPolicy = ScalingPolicy.fixed(1); // auto scaling is not enabled.
     private final StreamConfiguration config = StreamConfiguration.builder().scope(scope)
-            .streamName(SCALE_STREAM).scalingPolicy(scalingPolicy).build();
+            .streamName(stream).scalingPolicy(scalingPolicy).build();
     private ClientFactory clientFactory;
     private ReaderGroupManager readerGroupManager;
     private StreamManager streamManager;
@@ -79,9 +78,10 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         startPravegaSegmentStoreInstances(zkUri, controllerUri);
     }
 
+
     @Before
     public void setup() {
-        // Get zk details to verify if controller, SSS are running
+        // Get zk details to verify if controller, segmentstore are running
         Service zkService = new ZookeeperService("zookeeper");
         List<URI> zkUris = zkService.getServiceDetails();
         log.debug("Zookeeper service details: {}", zkUris);
@@ -108,17 +108,17 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
 
         //num. of readers + num. of writers + 1 to run checkScale operation
         executorService = ExecutorServiceHelpers.newScheduledThreadPool(NUM_READERS + NUM_WRITERS + 1,
-                "ReadWriteAndScaleWithFailoverTest-main");
+                "ReadTxnWriteScaleWithFailoverTest-main");
         controllerExecutorService = ExecutorServiceHelpers.newScheduledThreadPool(2,
-                "ReadWriteAndScaleWithFailoverTest-controller");
+                "ReadTxnWriteScaleWithFailoverTest-controller");
         //get Controller Uri
         controller = new ControllerImpl(controllerURIDirect,
                 ControllerImplConfig.builder().maxBackoffMillis(5000).build(),
                 controllerExecutorService);
-        testState = new TestState(false);
+        testState = new TestState(true);
         testState.writersListComplete.add(0, testState.writersComplete);
         streamManager = new StreamManagerImpl(controllerURIDirect);
-        createScopeAndStream(scope, SCALE_STREAM, config, streamManager);
+        createScopeAndStream(scope, stream, config, streamManager);
         log.info("Scope passed to client factory {}", scope);
         clientFactory = new ClientFactoryImpl(scope, controller);
         readerGroupManager = ReaderGroupManager.withScope(scope, controllerURIDirect);
@@ -132,7 +132,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         //interrupt writers and readers threads if they are still running.
         testState.cancelAllPendingWork();
         streamManager.close();
-        clientFactory.close(); //close the clientFactory/connectionFactory.
+        clientFactory.close();
         readerGroupManager.close();
         executorService.shutdownNow();
         controllerExecutorService.shutdownNow();
@@ -141,22 +141,56 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
         segmentStoreInstance.scaleService(1, true);
     }
 
+    void performFailoverForTestsInvolvingTxns() {
+
+        log.info("Test with 3 controller, segment store instances running and without a failover scenario");
+        log.info("Read count: {}, write count: {} without any failover",
+                testState.getEventReadCount(), testState.getEventWrittenCount());
+
+        //check reads and writes after sleeps
+        log.info("Sleeping for {} ", WAIT_AFTER_FAILOVER_MILLIS);
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+        log.info("Read count: {}, write count: {} without any failover after sleep before scaling",
+                testState.getEventReadCount(),  testState.getEventWrittenCount());
+
+        //Scale down segment store instances to 2
+        //zookeeper will take about 30 seconds to detect that the node has gone down
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+        log.info("Scaling down Segment Store instances from 3 to 2");
+        log.info("Read count: {}, write count: {} after Segment Store  failover after sleep",
+                testState.getEventReadCount(),  testState.getEventWrittenCount());
+
+        //Scale down controller instances to 2
+        //zookeeper will take about 30 seconds to detect that the node has gone down
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+        log.info("Scaling down controller instances from 3 to 2");
+        log.info("Read count: {}, write count: {} after controller failover after sleep",
+                testState.getEventReadCount(),  testState.getEventWrittenCount());
+
+        //Scale down segment store, controller to 1 instance each.
+        //zookeeper will take about 30 seconds to detect that the node has gone down
+        Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+        log.info("Scaling down  to 1 controller, 1 Segment Store  instance");
+        log.info("Stop write flag status: {}, stop read flag status: {} ",
+                testState.stopWriteFlag.get(), testState.stopReadFlag.get());
+        log.info("Read count: {}, write count: {} with Segment Store  and controller failover after sleep",
+                testState.getEventReadCount(),  testState.getEventWrittenCount());
+    }
+
     @Test(timeout = 25 * 60 * 1000)
-    public void readWriteAndScaleWithFailoverTest() throws Exception {
+    public void readTxnWriteScaleWithFailoverTest() throws Exception {
         try {
-            createWriters(clientFactory, NUM_WRITERS, scope, SCALE_STREAM);
-            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, SCALE_STREAM, NUM_READERS);
+            createWriters(clientFactory, NUM_WRITERS, scope, stream);
+            createReaders(clientFactory, readerGroupName, scope, readerGroupManager, stream, NUM_READERS);
 
             //run the failover test before scaling
-            performFailoverTest();
+            performFailoverForTestsInvolvingTxns();
 
             //bring the instances back to 3 before performing failover during scaling
-            controllerInstance.scaleService(3, true);
-            segmentStoreInstance.scaleService(3, true);
             Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
             //scale manually
-            log.debug("Number of Segments before manual scale: {}", controller.getCurrentSegments(scope, SCALE_STREAM)
+            log.debug("Number of Segments before manual scale: {}", controller.getCurrentSegments(scope, stream)
                     .get().getSegments().size());
 
             Map<Double, Double> keyRanges = new HashMap<>();
@@ -166,14 +200,14 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
             keyRanges.put(0.6, 0.8);
             keyRanges.put(0.8, 1.0);
 
-            CompletableFuture<Boolean> scaleStatus = controller.scaleStream(new StreamImpl(scope, SCALE_STREAM),
+            CompletableFuture<Boolean> scaleStatus = controller.scaleStream(new StreamImpl(scope, stream),
                     Collections.singletonList(0),
                     keyRanges,
                     executorService).getFuture();
             Futures.exceptionListener(scaleStatus, t -> log.error("Scale Operation completed with an error", t));
 
             //run the failover test while scaling
-            performFailoverTest();
+            performFailoverForTestsInvolvingTxns();
 
             //do a get on scaleStatus
             if (Futures.await(scaleStatus)) {
@@ -186,25 +220,25 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
                 Assert.fail("Scale operation threw an exception");
             }
 
-            log.debug("Number of Segments post manual scale: {}", controller.getCurrentSegments(scope, SCALE_STREAM)
+            log.debug("Number of Segments post manual scale: {}", controller.getCurrentSegments(scope, stream)
                     .get().getSegments().size());
 
             //bring the instances back to 3 before performing failover after scaling
-            controllerInstance.scaleService(3, true);
-            segmentStoreInstance.scaleService(3, true);
             Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
 
             //run the failover test after scaling
-            performFailoverTest();
+            performFailoverForTestsInvolvingTxns();
 
             stopWriters();
+            waitForTxnsToComplete();
             stopReaders();
             validateResults();
 
-            cleanUp(scope, SCALE_STREAM, readerGroupManager, readerGroupName); //cleanup if validation is successful.
-            log.info("Test ReadWriteAndScaleWithFailover succeeds");
+            cleanUp(scope, stream, readerGroupManager, readerGroupName); //cleanup if validation is successful.
+            log.info("Test ReadTxnWriteScaleWithFailover succeeds");
         } finally {
             testState.printAnomalies();
         }
     }
+
 }
