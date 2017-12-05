@@ -128,11 +128,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
     public void tearDown() {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
-<<<<<<< HEAD
-        testState.printAnomalies();
-=======
         testState.checkForAnomalies();
->>>>>>> 276523c7aff68f5f471dca59b124f49856e1d0ba
         //interrupt writers and readers threads if they are still running.
         testState.cancelAllPendingWork();
         streamManager.close();
