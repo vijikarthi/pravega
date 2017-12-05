@@ -125,7 +125,7 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
     public void tearDown() {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
-        testState.printAnomalies();
+        testState.checkForAnomalies();
         //interrupt writers and readers threads if they are still running.
         testState.cancelAllPendingWork();
         streamManager.close();
@@ -175,7 +175,7 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
             cleanUp(scope, stream, readerGroupManager, readerGroupName); //cleanup if validation is successful.
             log.info("Test ReadTxnWriteAutoScaleWithFailover succeeds");
         } finally {
-            testState.printAnomalies();
+            testState.checkForAnomalies();
         }
     }
 

@@ -120,7 +120,7 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
     public void tearDown() {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
-        testState.printAnomalies();
+        testState.checkForAnomalies();
         //interrupt writers and readers threads if they are still running.
         testState.cancelAllPendingWork();
         streamManager.close();
@@ -152,7 +152,7 @@ public class MultiReaderTxnWriterWithFailoverTest extends AbstractFailoverTests 
 
             log.info("Test MultiReaderWriterTxnWithFailOver succeeds");
         } finally {
-            testState.printAnomalies();
+            testState.checkForAnomalies();
         }
     }
 }
