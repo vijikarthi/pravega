@@ -64,7 +64,6 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-@Ignore
 @RunWith(SystemTestRunner.class)
 public class ReaderCheckpointTest {
 

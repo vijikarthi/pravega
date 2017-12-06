@@ -52,7 +52,6 @@ import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-@Ignore
 public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
 
     private static final int NUM_WRITERS = 5;
