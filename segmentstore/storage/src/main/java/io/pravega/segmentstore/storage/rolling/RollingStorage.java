@@ -570,16 +570,7 @@ public class RollingStorage implements SyncStorage {
     }
 
     private boolean shouldConcatNatively(RollingSegmentHandle source, RollingSegmentHandle target) {
-        if (source.getHeaderHandle() == null) {
-            // Source does not have a Header, hence we cannot do Header concat.
-            return true;
-        }
-
-        SegmentChunk lastSource = source.lastChunk();
-        SegmentChunk lastTarget = target.lastChunk();
-        return lastSource != null && lastSource.getStartOffset() == 0
-                && lastTarget != null && !lastTarget.isSealed()
-                && lastTarget.getLength() + lastSource.getLength() <= target.getRollingPolicy().getMaxLength();
+        return true;
     }
 
     private RollingSegmentHandle openHandle(String segmentName, boolean readOnly) throws StreamSegmentException {
