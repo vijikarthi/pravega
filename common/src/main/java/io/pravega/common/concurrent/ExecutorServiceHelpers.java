@@ -12,6 +12,8 @@ package io.pravega.common.concurrent;
 import com.google.common.base.Preconditions;
 import io.pravega.common.Exceptions;
 import io.pravega.common.function.RunnableWithException;
+
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
@@ -24,14 +26,17 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
 /**
  * Helper methods for ExecutorService.
  */
+@Slf4j
 public final class ExecutorServiceHelpers {
     
     private static class CallerRuns implements RejectedExecutionHandler {
@@ -68,7 +73,7 @@ public final class ExecutorServiceHelpers {
      */
     public static ScheduledExecutorService newScheduledThreadPool(int size, String poolName) {
         // Caller runs only occurs after shutdown, as queue size is unbounded.
-        ScheduledThreadPoolExecutor result = new ScheduledThreadPoolExecutor(size, getThreadFactory(poolName), new CallerRuns());
+        ScheduledThreadPoolExecutor result = new MyThreadPoolExecutor(size, getThreadFactory(poolName), new CallerRuns());
 
         // Do not execute any periodic tasks after shutdown.
         result.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
@@ -80,6 +85,41 @@ public final class ExecutorServiceHelpers {
         // not removed; if this setting is not enabled we could end up with leaked (and obsolete) tasks.
         result.setRemoveOnCancelPolicy(true);
         return result;
+    }
+
+    public static class MyThreadPoolExecutor extends ScheduledThreadPoolExecutor {
+
+        private final ConcurrentHashMap<Runnable, String> executingThread;
+        private final ConcurrentHashMap<Runnable, Long> executingTime;
+
+        MyThreadPoolExecutor(int corePoolSize, ThreadFactory threadFactory, RejectedExecutionHandler handler) {
+            super(corePoolSize, threadFactory, handler);
+            executingThread = new ConcurrentHashMap<>();
+            executingTime = new ConcurrentHashMap<>();
+        }
+
+        @Override
+        protected void beforeExecute(Thread t, Runnable r) {
+            super.beforeExecute(t, r);
+            long time = System.currentTimeMillis();
+
+            log.info("Picked Task for execution at {} on thread {}", time, t.getName());
+            executingThread.put(r, t.getName());
+            executingTime.put(r, time);
+        }
+
+        @Override
+        protected void afterExecute(Runnable r, Throwable t) {
+            super.afterExecute(r, t);
+            Long start = executingTime.get(r);
+            String thread = executingThread.get(r);
+            long time = System.currentTimeMillis();
+            if (start == null) {
+                log.info("Completed Task at {}", time);
+            } else {
+                log.info("Completed Task on thread {}, time taken = {}", thread, (time - start));
+            }
+        }
     }
 
     /**

@@ -322,7 +322,10 @@ public class ServiceBuilder implements AutoCloseable {
         ScheduledThreadPoolExecutor executorService = (ScheduledThreadPoolExecutor) ExecutorServiceHelpers.newScheduledThreadPool(threadPoolSize, "segment-store");
 
         // periodically print queue size for the executor
-        Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(() -> log.info("Segment-store thread pool queue size = {}", executorService.getQueue().size()),
+        Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(() -> {
+            log.info("Segment-store thread pool queue size = {}", executorService.getQueue().size());
+            log.info("Segment-store task count = {}", executorService.getTaskCount());
+                },
                 1L, 1L, TimeUnit.SECONDS);
 
         return newInMemoryBuilder(builderConfig, executorService);
