@@ -117,7 +117,7 @@ public final class ExecutorServiceHelpers {
             if (start == null) {
                 log.info("Completed Task at {}", time);
             } else {
-                log.info("Completed Task on thread {}, time taken = {}", thread, (time - start));
+                log.info("Completed Task on thread {}, time taken = {}", thread, time - start);
             }
         }
     }
