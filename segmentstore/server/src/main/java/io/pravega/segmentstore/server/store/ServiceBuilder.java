@@ -38,7 +38,11 @@ import io.pravega.segmentstore.storage.mocks.InMemoryCacheFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryDurableDataLogFactory;
 import io.pravega.segmentstore.storage.mocks.InMemoryStorageFactory;
 import io.pravega.shared.segment.SegmentToContainerMapper;
+
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -315,7 +319,13 @@ public class ServiceBuilder implements AutoCloseable {
      */
     public static ServiceBuilder newInMemoryBuilder(ServiceBuilderConfig builderConfig) {
         int threadPoolSize = builderConfig.getConfig(ServiceConfig::builder).getThreadPoolSize();
-        return newInMemoryBuilder(builderConfig, ExecutorServiceHelpers.newScheduledThreadPool(threadPoolSize, "segment-store"));
+        ScheduledThreadPoolExecutor executorService = (ScheduledThreadPoolExecutor) ExecutorServiceHelpers.newScheduledThreadPool(threadPoolSize, "segment-store");
+
+        // periodically print queue size for the executor
+        Executors.newSingleThreadScheduledExecutor().scheduleAtFixedRate(() -> log.info("Segment-store thread pool queue size = {}", executorService.getQueue().size()),
+                1L, 1L, TimeUnit.SECONDS);
+
+        return newInMemoryBuilder(builderConfig, executorService);
     }
 
     /**

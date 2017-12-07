@@ -81,7 +81,7 @@ public final class ExecutorServiceHelpers {
         result.setRemoveOnCancelPolicy(true);
         return result;
     }
-    
+
     /**
      * Gets a snapshot of the given ExecutorService.
      *

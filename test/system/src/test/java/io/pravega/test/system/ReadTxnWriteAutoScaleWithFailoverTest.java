@@ -36,7 +36,6 @@ import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -45,7 +44,6 @@ import org.junit.runner.RunWith;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
-@Ignore
 @RunWith(SystemTestRunner.class)
 public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests {
 
@@ -125,7 +123,7 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
     public void tearDown() {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
-        testState.printAnomalies();
+        testState.checkForAnomalies();
         //interrupt writers and readers threads if they are still running.
         testState.cancelAllPendingWork();
         streamManager.close();
@@ -175,7 +173,7 @@ public class ReadTxnWriteAutoScaleWithFailoverTest extends AbstractFailoverTests
             cleanUp(scope, stream, readerGroupManager, readerGroupName); //cleanup if validation is successful.
             log.info("Test ReadTxnWriteAutoScaleWithFailover succeeds");
         } finally {
-            testState.printAnomalies();
+            testState.checkForAnomalies();
         }
     }
 

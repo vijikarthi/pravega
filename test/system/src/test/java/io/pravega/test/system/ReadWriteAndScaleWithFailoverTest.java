@@ -42,7 +42,6 @@ import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -52,7 +51,6 @@ import static org.junit.Assert.assertTrue;
 
 @Slf4j
 @RunWith(SystemTestRunner.class)
-@Ignore
 public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
 
     private static final int NUM_WRITERS = 5;
@@ -128,7 +126,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
     public void tearDown() {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
-        testState.printAnomalies();
+        testState.checkForAnomalies();
         //interrupt writers and readers threads if they are still running.
         testState.cancelAllPendingWork();
         streamManager.close();
@@ -204,7 +202,7 @@ public class ReadWriteAndScaleWithFailoverTest extends AbstractFailoverTests {
             cleanUp(scope, SCALE_STREAM, readerGroupManager, readerGroupName); //cleanup if validation is successful.
             log.info("Test ReadWriteAndScaleWithFailover succeeds");
         } finally {
-            testState.printAnomalies();
+            testState.checkForAnomalies();
         }
     }
 }

@@ -35,7 +35,6 @@ import lombok.extern.slf4j.Slf4j;
 import mesosphere.marathon.client.MarathonException;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -44,7 +43,6 @@ import org.junit.runner.RunWith;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
-@Ignore
 @RunWith(SystemTestRunner.class)
 public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests {
 
@@ -125,7 +123,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
     public void tearDown() {
         testState.stopReadFlag.set(true);
         testState.stopWriteFlag.set(true);
-        testState.printAnomalies();
+        testState.checkForAnomalies();
         //interrupt writers and readers threads if they are still running.
         testState.cancelAllPendingWork();
         streamManager.close();
@@ -164,6 +162,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
             controllerInstance.scaleService(3, true);
             segmentStoreInstance.scaleService(3, true);
             Exceptions.handleInterrupted(() -> Thread.sleep(WAIT_AFTER_FAILOVER_MILLIS));
+
             //run the failover test after scaling
             performFailoverTest();
 
@@ -174,7 +173,7 @@ public class ReadWriteAndAutoScaleWithFailoverTest extends AbstractFailoverTests
             cleanUp(scope, AUTO_SCALE_STREAM, readerGroupManager, readerGroupName); //cleanup if validation is successful.
             log.info("Test ReadWriteAndAutoScaleWithFailover succeeds");
         } finally {
-            testState.printAnomalies();
+            testState.checkForAnomalies();
         }
     }
 }

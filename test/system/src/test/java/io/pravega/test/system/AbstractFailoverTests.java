@@ -33,6 +33,9 @@ import io.pravega.test.system.framework.services.PravegaControllerService;
 import io.pravega.test.system.framework.services.PravegaSegmentStoreService;
 import io.pravega.test.system.framework.services.Service;
 import io.pravega.test.system.framework.services.ZookeeperService;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.Assert;
+
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -48,12 +51,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import lombok.extern.slf4j.Slf4j;
-import org.junit.Assert;
-
 import static java.util.Collections.synchronizedList;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 @Slf4j
@@ -77,6 +78,7 @@ abstract class AbstractFailoverTests {
     ScheduledExecutorService controllerExecutorService;
     Controller controller;
     TestState testState;
+
 
     static class TestState {
         //read and write count variables
@@ -106,24 +108,6 @@ abstract class AbstractFailoverTests {
             this.txnWrite = txnWrite;
         }
 
-        void cancelAllPendingWork() {
-            readers.forEach(future -> {
-                try {
-                    future.cancel(true);
-                } catch (Exception e) {
-                    log.error("exception thrown while cancelling reader and writer threads", e);
-                }
-            });
-
-            writers.forEach(future -> {
-                try {
-                    future.cancel(true);
-                } catch (Exception e) {
-                    log.error("exception thrown while cancelling reader and writer threads", e);
-                }
-            });
-        }
-
         void eventWritten(Long event) {
             eventMap.putIfAbsent(event, 0);
         }
@@ -150,36 +134,61 @@ abstract class AbstractFailoverTests {
             return eventMap.values().stream().mapToInt(Integer::intValue).sum();
         }
 
-        void printAnomalies() {
+        void checkForAnomalies() {
+            boolean failed = false;
             List<Long> notRead = eventMap.entrySet().stream().filter(x -> x.getValue() == 0)
                     .map(Map.Entry::getKey).collect(Collectors.toList());
             if (notRead.size() > 0) {
+                failed = true;
                 log.error("Anomalies, unread events => {}", notRead);
             }
 
             Map<Long, Integer> duplicates = eventMap.entrySet().stream().filter(x -> x.getValue() > 1)
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             if (duplicates.size() > 0) {
+                failed = true;
                 log.error("Anomalies, duplicate events with count => {}", duplicates);
             }
 
             int eventReadCount = getEventReadCount();
             int eventWrittenCount = getEventWrittenCount();
             if (eventReadCount != eventWrittenCount) {
+                failed = true;
                 log.error("Read write count mismatch => readCount = {}, writeCount = {}", eventReadCount, eventWrittenCount);
             }
 
             if (committingTxn.size() > 0) {
+                failed = true;
                 log.error("Txn left committing: {}", committingTxn);
             }
 
             if (abortedTxn.size() > 0) {
+                failed = true;
                 log.error("Txn aborted: {}", abortedTxn);
             }
+            assertFalse("Test Failed", failed);
         }
 
         void eventsWritten(List<Long> eventsWritten) {
             eventsWritten.forEach(event -> eventMap.putIfAbsent(event, 0));
+        }
+
+        public void cancelAllPendingWork() {
+            readers.forEach(future -> {
+                try {
+                    future.cancel(true);
+                } catch (Exception e) {
+                    log.error("exception thrown while cancelling reader thread", e);
+                }
+            });
+
+            writers.forEach(future -> {
+                try {
+                    future.cancel(true);
+                } catch (Exception e) {
+                    log.error("exception thrown while cancelling writer thread", e);
+                }
+            });
         }
     }
 
@@ -283,6 +292,8 @@ abstract class AbstractFailoverTests {
                 testState.getEventReadCount(),  testState.getEventWrittenCount());
     }
 
+
+
     CompletableFuture<Void> startWriting(final EventStreamWriter<Long> writer) {
         return CompletableFuture.runAsync(() -> {
             while (!testState.stopWriteFlag.get()) {
@@ -325,6 +336,7 @@ abstract class AbstractFailoverTests {
             Assert.fail("Unable to commit transaction. Test failure");
         }
     }
+
 
     CompletableFuture<Void> startWritingIntoTxn(final EventStreamWriter<Long> writer) {
         return CompletableFuture.runAsync(() -> {
@@ -490,7 +502,7 @@ abstract class AbstractFailoverTests {
     }
 
     void createReaders(ClientFactory clientFactory, String readerGroupName, String scope,
-                       ReaderGroupManager readerGroupManager, String stream, final int readers) {
+                                 ReaderGroupManager readerGroupManager, String stream, final int readers) {
         log.info("Creating Reader group: {}, with readergroup manager using scope: {}", readerGroupName, scope);
         readerGroupManager.createReaderGroup(readerGroupName, ReaderGroupConfig.builder().startingTime(0).build(),
                 Collections.singleton(stream));
@@ -610,10 +622,13 @@ abstract class AbstractFailoverTests {
                 scaled = true;
                 break;
             }
+            //Scaling operation did not happen, wait
+            Exceptions.handleInterrupted(() -> Thread.sleep(10000));
         }
 
-        assertTrue("scaling did not happen within desired time", scaled);
+        assertTrue("Scaling did not happen within desired time", scaled);
     }
+
 
     static URI startZookeeperInstance() {
         Service zkService = new ZookeeperService("zookeeper");

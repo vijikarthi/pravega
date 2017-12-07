@@ -31,7 +31,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.Timeout;
@@ -64,7 +63,6 @@ import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-@Ignore
 @RunWith(SystemTestRunner.class)
 public class ReaderCheckpointTest {
 
@@ -260,11 +258,15 @@ public class ReaderCheckpointTest {
                         log.info("Read event {}", event.getEvent());
                         events.add(event);
                     }
+                    if (event.isCheckpoint()) {
+                        log.info("Read a check point event, checkpointName: {}", event.getCheckpointName());
+                    }
                 } catch (ReinitializationRequiredException e) {
                     log.error("Exception while reading event using readerId: {}", readerId, e);
                     fail("Reinitialization Exception is not expected");
                 }
-            } while (event.getEvent() != null);
+            } while (event.isCheckpoint() || event.getEvent() != null);
+            //stop reading if event read(non-checkpoint) is null.
             log.info("No more events from {}/{} for readerId: {}", SCOPE, STREAM, readerId);
         } //reader.close() will automatically invoke ReaderGroup#readerOffline(String, Position)
         return events;
