@@ -65,7 +65,8 @@ ${ZK_HOME}/bin/zkCli.sh -server $ZK_URL create /${PRAVEGA_PATH}/${PRAVEGA_CLUSTE
 
 echo "format the bookie"
 # format bookie
-BOOKIE_CONF=${BK_HOME}/conf/bk_server.conf ${BK_HOME}/bin/bookkeeper shell metaformat -nonInteractive
+#BOOKIE_CONF=${BK_HOME}/conf/bk_server.conf ${BK_HOME}/bin/bookkeeper shell metaformat -nonInteractive
+BOOKIE_CONF=${BK_HOME}/conf/bk_server.conf ${BK_HOME}/bin/bookkeeper shell initnewcluster
 
 echo "start a new bookie"
 # start bookie,
