@@ -70,6 +70,9 @@ import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_LATENCY;
 import static io.pravega.shared.MetricsNames.nameFromSegment;
+import static io.pravega.shared.MetricsNames.CONTAINER_GET_NEXT_APPENDS_REJECTION_COUNT;
+import static io.pravega.shared.MetricsNames.CONTAINER_WAITING_APPENDS_SIZE;
+import static io.pravega.shared.MetricsNames.nameFromWriter;
 
 /**
  * Process incoming Append requests and write them to the SegmentStore.
@@ -100,6 +103,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private final HashMap<Pair<String, UUID>, Long> latestEventNumbers = new HashMap<>();
     @GuardedBy("lock")
     private Append outstandingAppend = null;
+    private long noOfRejections = 0;
 
     //endregion
 
@@ -219,8 +223,24 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private Append getNextAppend() {
         synchronized (lock) {
             if (outstandingAppend != null || waitingAppends.isEmpty()) {
+                if (outstandingAppend != null) {
+                    log.warn("rejecting getNextAppend() since there is an outstandingAppend for writer: {}", outstandingAppend.getWriterId());
+                    noOfRejections++;
+                    DYNAMIC_LOGGER.updateCounterValue(nameFromWriter(CONTAINER_GET_NEXT_APPENDS_REJECTION_COUNT, outstandingAppend.getWriterId().toString()), noOfRejections);
+                }
                 return null;
             }
+            log.warn("waitingAppends total: {}, connection: {}", waitingAppends.size(), connection);
+            if (noOfRejections > 0) {
+                noOfRejections--;
+            }
+
+            int bytesWaiting = waitingAppends.values()
+                    .stream()
+                    .mapToInt(a -> a.getData().readableBytes())
+                    .sum();
+            DYNAMIC_LOGGER.updateCounterValue(CONTAINER_WAITING_APPENDS_SIZE, bytesWaiting);
+
             UUID writer = waitingAppends.keys().iterator().next();
             List<Append> appends = waitingAppends.get(writer);
             if (appends.get(0).isConditional()) {

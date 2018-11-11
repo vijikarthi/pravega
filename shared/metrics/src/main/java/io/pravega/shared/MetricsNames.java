@@ -71,6 +71,8 @@ public final class MetricsNames {
     public static final String CONTAINER_MERGE_SEGMENT_COUNT = "segmentstore.container.merge_segment_count";
     public static final String CONTAINER_SEAL_COUNT = "segmentstore.container.seal_count";
     public static final String CONTAINER_TRUNCATE_COUNT = "segmentstore.container.truncate_count";
+    public static final String CONTAINER_WAITING_APPENDS_SIZE = "segmentstore.container.waiting_append_size";
+    public static final String CONTAINER_GET_NEXT_APPENDS_REJECTION_COUNT = "segmentstore.container.get_next_append_reject_count";
 
     // Operation processor metrics
     public static final String PROCESS_OPERATIONS_LATENCY = "segmentstore.container.process_operations.latency_ms";
@@ -130,6 +132,11 @@ public final class MetricsNames {
 
     public static String nameFromContainer(String metric, int containerId) {
         String name = metric + "." + containerId;
+        return escapeSpecialChar(name);
+    }
+
+    public static String nameFromWriter(String metric, String writerId) {
+        String name = metric + "." + writerId;
         return escapeSpecialChar(name);
     }
 }

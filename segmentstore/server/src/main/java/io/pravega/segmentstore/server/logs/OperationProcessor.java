@@ -249,7 +249,7 @@ class OperationProcessor extends AbstractThreadPoolService implements AutoClosea
 
     private CompletableFuture<Void> throttleOnce(int millis, boolean max) {
         this.metrics.processingDelay(millis);
-        log.debug("{}: Processing delay = {}ms (max={}).", this.traceObjectId, millis, max);
+        log.warn("{}: Processing delay = {}ms (max={}).", this.traceObjectId, millis, max);
         return Futures.delayedFuture(Duration.ofMillis(millis), this.executor);
     }
 
