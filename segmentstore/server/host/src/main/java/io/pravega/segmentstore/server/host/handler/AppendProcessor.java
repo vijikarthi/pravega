@@ -231,10 +231,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 return null;
             }
             log.warn("waitingAppends total: {}, connection: {}", waitingAppends.size(), connection);
-            if (noOfRejections > 0) {
-                noOfRejections--;
-            }
-
             DYNAMIC_LOGGER.updateCounterValue(CONTAINER_GET_NEXT_APPENDS_REJECTION_COUNT, noOfRejections);
 
             int bytesWaiting = waitingAppends.values()
@@ -337,6 +333,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         "Synchronization error in: %s while processing append: %s.",
                         AppendProcessor.this.getClass().getName(), append);
                 outstandingAppend = null;
+                noOfRejections = 0;
                 if (exception == null) {
                     latestEventNumbers.put(Pair.of(append.getSegment(), append.getWriterId()), append.getEventNumber());
                 } else {
