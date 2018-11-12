@@ -226,7 +226,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 if (outstandingAppend != null) {
                     log.warn("rejecting getNextAppend() since there is an outstandingAppend for writer: {}", outstandingAppend.getWriterId());
                     noOfRejections++;
-                    DYNAMIC_LOGGER.updateCounterValue(nameFromWriter(CONTAINER_GET_NEXT_APPENDS_REJECTION_COUNT, outstandingAppend.getWriterId().toString()), noOfRejections);
+                    DYNAMIC_LOGGER.updateCounterValue(CONTAINER_GET_NEXT_APPENDS_REJECTION_COUNT, noOfRejections);
                 }
                 return null;
             }
@@ -235,11 +235,13 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 noOfRejections--;
             }
 
+            DYNAMIC_LOGGER.updateCounterValue(CONTAINER_GET_NEXT_APPENDS_REJECTION_COUNT, noOfRejections);
+
             int bytesWaiting = waitingAppends.values()
                     .stream()
                     .mapToInt(a -> a.getData().readableBytes())
                     .sum();
-            DYNAMIC_LOGGER.updateCounterValue(CONTAINER_WAITING_APPENDS_SIZE, bytesWaiting);
+            DYNAMIC_LOGGER.recordMeterEvents(CONTAINER_WAITING_APPENDS_SIZE, bytesWaiting);
 
             UUID writer = waitingAppends.keys().iterator().next();
             List<Append> appends = waitingAppends.get(writer);
