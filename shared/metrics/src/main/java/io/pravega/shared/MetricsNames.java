@@ -140,7 +140,8 @@ public final class MetricsNames {
     }
 
     public static String nameFromWriter(String metric, String writerId) {
-        String name = metric + "." + writerId;
-        return escapeSpecialChar(name);
+        //String name = metric + "." + writerId;
+        //return escapeSpecialChar(name);
+        return metric;
     }
 }
