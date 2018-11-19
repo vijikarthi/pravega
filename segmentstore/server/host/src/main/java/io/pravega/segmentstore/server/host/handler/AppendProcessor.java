@@ -73,7 +73,6 @@ import static io.pravega.shared.MetricsNames.nameFromSegment;
 import static io.pravega.shared.MetricsNames.CONTAINER_GET_NEXT_APPENDS_REJECTION_COUNT;
 import static io.pravega.shared.MetricsNames.CONTAINER_WAITING_APPENDS_SIZE;
 import static io.pravega.shared.MetricsNames.CONTAINER_PAUSE_APPEND_REQUEST;
-import static io.pravega.shared.MetricsNames.CONTAINER_RESUME_APPEND_REQUEST;
 import static io.pravega.shared.MetricsNames.CONTAINER_STORE_APPEND_PROCESSING_COUNT;
 import static io.pravega.shared.MetricsNames.CONTAINER_STORE_APPEND_PROCESSING_BYTES;
 import static io.pravega.shared.MetricsNames.nameFromWriter;
@@ -109,7 +108,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private Append outstandingAppend = null;
     private long noOfRejections = 0;
     private long pauseCount = 0;
-    private long resumeCount = 0;
 
     //endregion
 
@@ -170,6 +168,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
      */
     @Override
     public void setupAppend(SetupAppend setupAppend) {
+        DYNAMIC_LOGGER.updateCounterValue(nameFromWriter(CONTAINER_PAUSE_APPEND_REQUEST, connection.toString()), 0);
         String newSegment = setupAppend.getSegment();
         UUID writer = setupAppend.getWriterId();
         log.info("Setting up appends for writer: {} on segment: {}", writer, newSegment);
@@ -238,12 +237,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             }
             log.warn("waitingAppends total: {}, connection: {}", waitingAppends.size(), connection);
             DYNAMIC_LOGGER.updateCounterValue(nameFromWriter(CONTAINER_GET_NEXT_APPENDS_REJECTION_COUNT, connection.toString()), noOfRejections);
-
-            int bytesWaiting = waitingAppends.values()
-                    .stream()
-                    .mapToInt(a -> a.getData().readableBytes())
-                    .sum();
-            DYNAMIC_LOGGER.reportGaugeValue(nameFromWriter(CONTAINER_WAITING_APPENDS_SIZE, connection.toString()), bytesWaiting);
 
             UUID writer = waitingAppends.keys().iterator().next();
             List<Append> appends = waitingAppends.get(writer);
@@ -421,15 +414,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
         if (bytesWaiting < LOW_WATER_MARK) {
             log.warn("Resuming writing from connection {}", connection);
-            resumeCount++;
             pauseCount--;
-            DYNAMIC_LOGGER.updateCounterValue(nameFromWriter(CONTAINER_RESUME_APPEND_REQUEST, connection.toString()), resumeCount);
-            if (pauseCount <= 0) {
-                if (pauseCount < 0) {
-                    pauseCount = 0;
-                }
-                resumeCount=0;
-            } else {
+            if (pauseCount < 0) {
+                pauseCount = 0;
                 DYNAMIC_LOGGER.updateCounterValue(nameFromWriter(CONTAINER_PAUSE_APPEND_REQUEST, connection.toString()), pauseCount);
             }
             connection.resumeReading();
@@ -451,6 +438,13 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             Preconditions.checkState(append.getEventNumber() >= lastEventNumber, "Event was already appended.");
             waitingAppends.put(id, append);
         }
+
+        int bytesWaiting = waitingAppends.values()
+                .stream()
+                .mapToInt(a -> a.getData().readableBytes())
+                .sum();
+        DYNAMIC_LOGGER.reportGaugeValue(nameFromWriter(CONTAINER_WAITING_APPENDS_SIZE, connection.toString()), bytesWaiting);
+
         pauseOrResumeReading();
         performNextWrite();
     }
