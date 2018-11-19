@@ -72,6 +72,10 @@ import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_LATENCY;
 import static io.pravega.shared.MetricsNames.nameFromSegment;
 import static io.pravega.shared.MetricsNames.CONTAINER_GET_NEXT_APPENDS_REJECTION_COUNT;
 import static io.pravega.shared.MetricsNames.CONTAINER_WAITING_APPENDS_SIZE;
+import static io.pravega.shared.MetricsNames.CONTAINER_PAUSE_APPEND_REQUEST;
+import static io.pravega.shared.MetricsNames.CONTAINER_RESUME_APPEND_REQUEST;
+import static io.pravega.shared.MetricsNames.CONTAINER_STORE_APPEND_PROCESSING_COUNT;
+import static io.pravega.shared.MetricsNames.CONTAINER_STORE_APPEND_PROCESSING_BYTES;
 import static io.pravega.shared.MetricsNames.nameFromWriter;
 
 /**
@@ -82,8 +86,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     //region Members
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
-    private static final int HIGH_WATER_MARK = 128 * 1024;
-    private static final int LOW_WATER_MARK = 64 * 1024;
+    private static final int HIGH_WATER_MARK = 128 * 1024 * 20;
+    private static final int LOW_WATER_MARK = 64 * 1024 * 20;
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
     private static final OpStatsLogger WRITE_STREAM_SEGMENT = STATS_LOGGER.createStats(SEGMENT_WRITE_LATENCY);
@@ -104,6 +108,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     @GuardedBy("lock")
     private Append outstandingAppend = null;
     private long noOfRejections = 0;
+    private long pauseCount = 0;
+    private long resumeCount = 0;
 
     //endregion
 
@@ -226,18 +232,18 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 if (outstandingAppend != null) {
                     log.warn("rejecting getNextAppend() since there is an outstandingAppend for writer: {}", outstandingAppend.getWriterId());
                     noOfRejections++;
-                    DYNAMIC_LOGGER.updateCounterValue(CONTAINER_GET_NEXT_APPENDS_REJECTION_COUNT, noOfRejections);
+                    DYNAMIC_LOGGER.updateCounterValue(nameFromWriter(CONTAINER_GET_NEXT_APPENDS_REJECTION_COUNT, connection.toString()), noOfRejections);
                 }
                 return null;
             }
             log.warn("waitingAppends total: {}, connection: {}", waitingAppends.size(), connection);
-            DYNAMIC_LOGGER.updateCounterValue(CONTAINER_GET_NEXT_APPENDS_REJECTION_COUNT, noOfRejections);
+            DYNAMIC_LOGGER.updateCounterValue(nameFromWriter(CONTAINER_GET_NEXT_APPENDS_REJECTION_COUNT, connection.toString()), noOfRejections);
 
             int bytesWaiting = waitingAppends.values()
                     .stream()
                     .mapToInt(a -> a.getData().readableBytes())
                     .sum();
-            DYNAMIC_LOGGER.recordMeterEvents(CONTAINER_WAITING_APPENDS_SIZE, bytesWaiting);
+            DYNAMIC_LOGGER.reportGaugeValue(nameFromWriter(CONTAINER_WAITING_APPENDS_SIZE, connection.toString()), bytesWaiting);
 
             UUID writer = waitingAppends.keys().iterator().next();
             List<Append> appends = waitingAppends.get(writer);
@@ -281,6 +287,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                 new AttributeUpdate(EVENT_COUNT, AttributeUpdateType.Accumulate, append.getEventCount()));
         ByteBuf buf = append.getData().asReadOnly();
         byte[] bytes = new byte[buf.readableBytes()];
+        DYNAMIC_LOGGER.incCounterValue(nameFromWriter(CONTAINER_STORE_APPEND_PROCESSING_COUNT, connection.toString()), 1);
+        DYNAMIC_LOGGER.reportGaugeValue(nameFromWriter(CONTAINER_STORE_APPEND_PROCESSING_BYTES, connection.toString()), bytes.length);
         buf.readBytes(bytes);
         if (append.isConditional()) {
             return store.append(append.getSegment(), append.getExpectedLength(), bytes, attributes, TIMEOUT);
@@ -406,11 +414,24 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         }
 
         if (bytesWaiting > HIGH_WATER_MARK) {
-            log.debug("Pausing writing from connection {}", connection);
+            log.warn("Pausing writing from connection {}", connection);
+            pauseCount++;
+            DYNAMIC_LOGGER.updateCounterValue(nameFromWriter(CONTAINER_PAUSE_APPEND_REQUEST, connection.toString()), pauseCount);
             connection.pauseReading();
         }
         if (bytesWaiting < LOW_WATER_MARK) {
-            log.trace("Resuming writing from connection {}", connection);
+            log.warn("Resuming writing from connection {}", connection);
+            resumeCount++;
+            pauseCount--;
+            DYNAMIC_LOGGER.updateCounterValue(nameFromWriter(CONTAINER_RESUME_APPEND_REQUEST, connection.toString()), resumeCount);
+            if (pauseCount <= 0) {
+                if (pauseCount < 0) {
+                    pauseCount = 0;
+                }
+                resumeCount=0;
+            } else {
+                DYNAMIC_LOGGER.updateCounterValue(nameFromWriter(CONTAINER_PAUSE_APPEND_REQUEST, connection.toString()), pauseCount);
+            }
             connection.resumeReading();
         }
     }
