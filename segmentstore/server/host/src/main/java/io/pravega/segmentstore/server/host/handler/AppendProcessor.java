@@ -69,6 +69,13 @@ import static io.pravega.segmentstore.contracts.Attributes.EVENT_COUNT;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_BYTES;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_EVENTS;
 import static io.pravega.shared.MetricsNames.SEGMENT_WRITE_LATENCY;
+import static io.pravega.shared.MetricsNames.SEGMENT_WAITING_APPEND_BYTES_CURRENT;
+import static io.pravega.shared.MetricsNames.SEGMENT_WAITING_APPEND_BYTES_TOTAL;
+import static io.pravega.shared.MetricsNames.SEGMENT_APPEND_CONN_PAUSE_COUNT;
+import static io.pravega.shared.MetricsNames.SEGMENT_APPEND_DELAY_COUNT;
+import static io.pravega.shared.MetricsNames.SEGMENT_APPEND_REQUEST_COUNT;
+import static io.pravega.shared.MetricsNames.SEGMENT_APPEND_TOTAL_BYTES_CURRENT;
+import static io.pravega.shared.MetricsNames.SEGMENT_APPEND_TOTAL_EVENTS_CURRENT;
 import static io.pravega.shared.MetricsNames.nameFromSegment;
 
 /**
@@ -79,8 +86,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     //region Members
 
     static final Duration TIMEOUT = Duration.ofMinutes(1);
-    private static final int HIGH_WATER_MARK = 128 * 1024;
-    private static final int LOW_WATER_MARK = 64 * 1024;
+    private static final int HIGH_WATER_MARK = 128 * 1024 * 10;
+    private static final int LOW_WATER_MARK = 64 * 1024 * 10;
     private static final StatsLogger STATS_LOGGER = MetricsProvider.createStatsLogger("segmentstore");
     private static final DynamicLogger DYNAMIC_LOGGER = MetricsProvider.getDynamicLogger();
     private static final OpStatsLogger WRITE_STREAM_SEGMENT = STATS_LOGGER.createStats(SEGMENT_WRITE_LATENCY);
@@ -93,6 +100,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private final SegmentStatsRecorder statsRecorder;
     private final DelegationTokenVerifier tokenVerifier;
     private final boolean replyWithStackTraceOnError;
+    private int delayAppendCount = 0;
 
     @GuardedBy("lock")
     private final LinkedListMultimap<UUID, Append> waitingAppends = LinkedListMultimap.create(2);
@@ -219,6 +227,9 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private Append getNextAppend() {
         synchronized (lock) {
             if (outstandingAppend != null || waitingAppends.isEmpty()) {
+                if (outstandingAppend != null) {
+                    DYNAMIC_LOGGER.incCounterValue(SEGMENT_APPEND_DELAY_COUNT, ++delayAppendCount);
+                }
                 return null;
             }
             UUID writer = waitingAppends.keys().iterator().next();
@@ -264,6 +275,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         ByteBuf buf = append.getData().asReadOnly();
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
+        DYNAMIC_LOGGER.reportGaugeValue(SEGMENT_APPEND_TOTAL_BYTES_CURRENT, bytes.length);
+        DYNAMIC_LOGGER.reportGaugeValue(SEGMENT_APPEND_TOTAL_EVENTS_CURRENT, append.getEventCount());
         if (append.isConditional()) {
             return store.append(append.getSegment(), append.getExpectedLength(), bytes, attributes, TIMEOUT);
         } else {
@@ -315,6 +328,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         "Synchronization error in: %s while processing append: %s.",
                         AppendProcessor.this.getClass().getName(), append);
                 outstandingAppend = null;
+                delayAppendCount = 0;
+                DYNAMIC_LOGGER.updateCounterValue(SEGMENT_APPEND_DELAY_COUNT, delayAppendCount);
                 if (exception == null) {
                     latestEventNumbers.put(Pair.of(append.getSegment(), append.getWriterId()), append.getEventNumber());
                 } else {
@@ -388,6 +403,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
 
         if (bytesWaiting > HIGH_WATER_MARK) {
             log.debug("Pausing writing from connection {}", connection);
+            DYNAMIC_LOGGER.incCounterValue(SEGMENT_APPEND_CONN_PAUSE_COUNT, 1);
             connection.pauseReading();
         }
         if (bytesWaiting < LOW_WATER_MARK) {
@@ -410,6 +426,13 @@ public class AppendProcessor extends DelegatingRequestProcessor {
             Preconditions.checkState(lastEventNumber != null, "Data from unexpected connection: %s.", id);
             Preconditions.checkState(append.getEventNumber() >= lastEventNumber, "Event was already appended.");
             waitingAppends.put(id, append);
+            int bytesWaiting = waitingAppends.values()
+                    .stream()
+                    .mapToInt(a -> a.getData().readableBytes())
+                    .sum();
+            DYNAMIC_LOGGER.reportGaugeValue(SEGMENT_WAITING_APPEND_BYTES_CURRENT, bytesWaiting);
+            DYNAMIC_LOGGER.incCounterValue(SEGMENT_WAITING_APPEND_BYTES_TOTAL, append.getDataLength());
+            DYNAMIC_LOGGER.incCounterValue(SEGMENT_APPEND_REQUEST_COUNT, 1);
         }
         pauseOrResumeReading();
         performNextWrite();

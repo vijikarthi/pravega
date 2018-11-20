@@ -31,6 +31,16 @@ package io.pravega.shared;
 
 public final class MetricsNames {
     // Metrics in Segment Store Service
+
+    // Append Processor stats
+    public static final String SEGMENT_WAITING_APPEND_BYTES_CURRENT = "segmentstore.segment.waiting_append_bytes_current";      // Gauge
+    public static final String SEGMENT_WAITING_APPEND_BYTES_TOTAL = "segmentstore.segment.waiting_append_bytes_total";          // Dynamic Counter
+    public static final String SEGMENT_APPEND_REQUEST_COUNT = "segmentstore.segment.append_request_count";                      // Dynamic Counter
+    public static final String SEGMENT_APPEND_CONN_PAUSE_COUNT = "segmentstore.segment.append_conn_pause_count";                // Dynamic Counter
+    public static final String SEGMENT_APPEND_DELAY_COUNT = "segmentstore.segment.append_delay_count";                          // Dynamic Counter
+    public static final String SEGMENT_APPEND_TOTAL_BYTES_CURRENT = "segmentstore.segment.append_total_bytes_current";          // Gauge
+    public static final String SEGMENT_APPEND_TOTAL_EVENTS_CURRENT = "segmentstore.segment.append_total_events_current";        // Gauge
+
     // Segment-related stats
     public static final String SEGMENT_CREATE_LATENCY = "segmentstore.segment.create_latency_ms"; // Timer
     public static final String SEGMENT_READ_LATENCY = "segmentstore.segment.read_latency_ms";     // Timer
