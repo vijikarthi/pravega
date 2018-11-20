@@ -30,6 +30,7 @@ import io.pravega.client.stream.impl.ClientFactoryImpl;
 import io.pravega.client.stream.impl.Controller;
 import io.pravega.client.stream.impl.JavaSerializer;
 import io.pravega.client.stream.impl.StreamImpl;
+import io.pravega.common.Exceptions;
 import io.pravega.segmentstore.contracts.StreamSegmentStore;
 import io.pravega.segmentstore.server.host.handler.PravegaConnectionListener;
 import io.pravega.segmentstore.server.store.ServiceBuilder;
@@ -210,11 +211,13 @@ public class EndToEndTxnWithTest extends ThreadPooledTestSuite {
 
         EventWriterConfig lowTimeoutConfig = EventWriterConfig.builder().transactionTimeoutTime(1000).build();
         AssertExtensions.assertThrows("low timeout period not honoured",
-                () -> createTxn(clientFactory, lowTimeoutConfig, "test"), e -> e.getCause() instanceof IllegalArgumentException);
+                () -> createTxn(clientFactory, lowTimeoutConfig, "test"),
+                e -> Exceptions.unwrap(e.getCause()) instanceof IllegalArgumentException);
 
         EventWriterConfig highTimeoutConfig = EventWriterConfig.builder().transactionTimeoutTime(200 * 1000).build();
         AssertExtensions.assertThrows("high timeouot period not honoured",
-                () -> createTxn(clientFactory, highTimeoutConfig, "test"), e -> e.getCause() instanceof IllegalArgumentException);
+                () -> createTxn(clientFactory, highTimeoutConfig, "test"),
+                e -> Exceptions.unwrap(e.getCause()) instanceof IllegalArgumentException);
     }
 
     private UUID createTxn(ClientFactory clientFactory, EventWriterConfig config, String streamName) {
