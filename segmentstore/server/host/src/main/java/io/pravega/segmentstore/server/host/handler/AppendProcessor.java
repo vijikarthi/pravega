@@ -100,7 +100,6 @@ public class AppendProcessor extends DelegatingRequestProcessor {
     private final SegmentStatsRecorder statsRecorder;
     private final DelegationTokenVerifier tokenVerifier;
     private final boolean replyWithStackTraceOnError;
-    private int delayAppendCount = 0;
 
     @GuardedBy("lock")
     private final LinkedListMultimap<UUID, Append> waitingAppends = LinkedListMultimap.create(2);
@@ -228,7 +227,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         synchronized (lock) {
             if (outstandingAppend != null || waitingAppends.isEmpty()) {
                 if (outstandingAppend != null) {
-                    DYNAMIC_LOGGER.incCounterValue(SEGMENT_APPEND_DELAY_COUNT, ++delayAppendCount);
+                    DYNAMIC_LOGGER.incCounterValue(SEGMENT_APPEND_DELAY_COUNT, 1);
                 }
                 return null;
             }
@@ -275,8 +274,8 @@ public class AppendProcessor extends DelegatingRequestProcessor {
         ByteBuf buf = append.getData().asReadOnly();
         byte[] bytes = new byte[buf.readableBytes()];
         buf.readBytes(bytes);
-        DYNAMIC_LOGGER.reportGaugeValue(SEGMENT_APPEND_TOTAL_BYTES_CURRENT, bytes.length);
-        DYNAMIC_LOGGER.reportGaugeValue(SEGMENT_APPEND_TOTAL_EVENTS_CURRENT, append.getEventCount());
+        DYNAMIC_LOGGER.incCounterValue(SEGMENT_APPEND_TOTAL_BYTES_CURRENT, bytes.length);
+        DYNAMIC_LOGGER.incCounterValue(SEGMENT_APPEND_TOTAL_EVENTS_CURRENT, append.getEventCount());
         if (append.isConditional()) {
             return store.append(append.getSegment(), append.getExpectedLength(), bytes, attributes, TIMEOUT);
         } else {
@@ -330,8 +329,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                         "Synchronization error in: %s while processing append: %s.",
                         AppendProcessor.this.getClass().getName(), append);
                 outstandingAppend = null;
-                delayAppendCount = 0;
-                DYNAMIC_LOGGER.updateCounterValue(SEGMENT_APPEND_DELAY_COUNT, delayAppendCount);
+                DYNAMIC_LOGGER.updateCounterValue(SEGMENT_APPEND_DELAY_COUNT, 0);
                 if (exception == null) {
                     latestEventNumbers.put(Pair.of(append.getSegment(), append.getWriterId()), append.getEventNumber());
                 } else {
@@ -432,7 +430,7 @@ public class AppendProcessor extends DelegatingRequestProcessor {
                     .stream()
                     .mapToInt(a -> a.getData().readableBytes())
                     .sum();
-            DYNAMIC_LOGGER.reportGaugeValue(SEGMENT_WAITING_APPEND_BYTES_CURRENT, bytesWaiting);
+            DYNAMIC_LOGGER.incCounterValue(SEGMENT_WAITING_APPEND_BYTES_CURRENT, bytesWaiting);
             DYNAMIC_LOGGER.incCounterValue(SEGMENT_WAITING_APPEND_BYTES_TOTAL, append.getDataLength());
             DYNAMIC_LOGGER.incCounterValue(SEGMENT_APPEND_REQUEST_COUNT, 1);
         }
