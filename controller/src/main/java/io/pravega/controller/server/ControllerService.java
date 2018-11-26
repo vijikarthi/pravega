@@ -78,6 +78,20 @@ public class ControllerService {
     private final StreamMetrics streamMetrics;
     private final TransactionMetrics transactionMetrics;
 
+    public ControllerService(StreamMetadataStore streamStore, HostControllerStore hostStore, StreamMetadataTasks streamMetadataTasks,
+                             StreamTransactionMetadataTasks streamTransactionMetadataTasks, SegmentHelper segmentHelper,
+                             Executor executor, Cluster cluster) {
+        this.streamStore = streamStore;
+        this.hostStore = hostStore;
+        this.streamMetadataTasks = streamMetadataTasks;
+        this.streamTransactionMetadataTasks = streamTransactionMetadataTasks;
+        this.segmentHelper = segmentHelper;
+        this.executor = executor;
+        this.cluster = cluster;
+        this.streamMetrics = new StreamMetrics();
+        this.transactionMetrics = new TransactionMetrics();
+    }
+
     public CompletableFuture<List<NodeUri>> getControllerServerList() {
         if (cluster == null) {
             return Futures.failedFuture(new IllegalStateException("Controller cluster not initialized"));
@@ -106,7 +120,10 @@ public class ControllerService {
             return CompletableFuture.completedFuture(
                     CreateStreamStatus.newBuilder().setStatus(CreateStreamStatus.Status.INVALID_STREAM_NAME).build());
         }
-        return streamMetadataTasks.createStream(streamConfig.getScope(), streamConfig.getStreamName(), streamConfig, createTimestamp)
+        return streamMetadataTasks.createStream(streamConfig.getScope(),
+                                                streamConfig.getStreamName(),
+                                                streamConfig,
+                                                createTimestamp)
                 .thenApplyAsync(status -> {
                     reportCreateStreamMetrics(streamConfig.getScope(), streamConfig.getStreamName(),
                             streamConfig.getScalingPolicy().getMinNumSegments(), status, timer.getElapsed());
