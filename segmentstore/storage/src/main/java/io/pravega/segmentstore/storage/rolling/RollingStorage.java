@@ -305,7 +305,7 @@ public class RollingStorage implements SyncStorage {
         ensureNotDeleted(h);
         ensureNotSealed(h);
         ensureOffset(h, offset);
-        long traceId = LoggerHelpers.traceEnter(log, "write", handle, offset, length);
+        long traceId = LoggerHelpers.specialTraceEnter(log, "write-RollingStorage", handle, offset, length);
 
         // We run this in a loop because we may have to split the write over multiple SegmentChunks in order to avoid exceeding
         // any SegmentChunk's maximum length.
@@ -324,7 +324,7 @@ public class RollingStorage implements SyncStorage {
             bytesWritten += writeLength;
         }
 
-        LoggerHelpers.traceLeave(log, "write", traceId, handle, offset, bytesWritten);
+        LoggerHelpers.specialTraceLeave(log, "write-RollingStorage", traceId, handle, offset, bytesWritten);
     }
 
     @Override

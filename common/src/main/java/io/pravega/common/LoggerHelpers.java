@@ -110,4 +110,36 @@ public final class LoggerHelpers {
             log.trace("LEAVE {}::{}@{} {} (elapsed={}us).", context, method, traceEnterId, args, ELAPSED_MICRO.apply(traceEnterId));
         }
     }
+
+    /**
+     * Traces the fact that a method entry has occurred.
+     *
+     * @param log    The Logger to log to.
+     * @param method The name of the method.
+     * @param args   The arguments to the method.
+     * @return A generated identifier that can be used to correlate this traceEnter with its corresponding traceLeave.
+     * This is usually generated from the current System time, and when used with traceLeave it can be used to log
+     * elapsed call times.
+     */
+    public static long specialTraceEnter(Logger log, String method, Object... args) {
+        long time = CURRENT_TIME.get();
+        log.error("ENTER {}@{} {}.", method, time, args);
+        return time;
+    }
+
+    /**
+     * Traces the fact that a method has exited normally.
+     *
+     * @param log          The Logger to log to.
+     * @param method       The name of the method.
+     * @param traceEnterId The correlation Id obtained from a traceEnter call.
+     * @param args         Additional arguments to log.
+     */
+    public static void specialTraceLeave(Logger log, String method, long traceEnterId, Object... args) {
+        if (args.length == 0) {
+            log.error("LEAVE {}@{} (elapsed={}us).", method, traceEnterId, ELAPSED_MICRO.apply(traceEnterId));
+        } else {
+            log.error("LEAVE {}@{} {} (elapsed={}us).", method, traceEnterId, args, ELAPSED_MICRO.apply(traceEnterId));
+        }
+    }
 }
