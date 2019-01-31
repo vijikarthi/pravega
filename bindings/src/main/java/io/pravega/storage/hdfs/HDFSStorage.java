@@ -337,7 +337,7 @@ class HDFSStorage implements SyncStorage {
     @Override
     public void write(SegmentHandle handle, long offset, InputStream data, int length) throws StreamSegmentException {
         ensureInitializedAndNotClosed();
-        long traceId = LoggerHelpers.specialTraceEnter(log, "write-HDFSStorage", handle, offset, length);
+        //long traceId = LoggerHelpers.specialTraceEnter(log, "write", handle, offset, length);
         handle = asWritableHandle(handle);
         FileStatus status = null;
         try {
@@ -384,7 +384,7 @@ class HDFSStorage implements SyncStorage {
 
         HDFSMetrics.WRITE_LATENCY.reportSuccessEvent(timer.getElapsed());
         HDFSMetrics.WRITE_BYTES.add(length);
-        LoggerHelpers.specialTraceLeave(log, "write-HDFSStorage", traceId, handle, offset, length);
+        //LoggerHelpers.specialTraceLeave(log, "write", traceId, handle, offset, length);
     }
 
     @Override
