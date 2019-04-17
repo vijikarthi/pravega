@@ -116,7 +116,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
 
     private CompletableFuture<StreamSegmentInfo> getStreamSegmentInfo(String delegationToken) {
         long requestId = requestIdGenerator.get();
-        log.debug("Getting segment info for segment: {}", segmentId);
+        log.debug("Getting segment info for segment: {}, delegationToken: {}", segmentId, delegationToken);
         RawClient connection = getConnection();
         return connection.sendRequest(requestId, new GetStreamSegmentInfo(requestId, segmentId.getScopedName(), delegationToken))
                          .thenApply(r -> transformReply(r, StreamSegmentInfo.class));
@@ -160,6 +160,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
 
     @Override
     public long fetchCurrentSegmentLength() {
+        log.debug("fetchCurrentSegmentLength called, delegationToken: {}", delegationToken);
         Exceptions.checkNotClosed(closed.get(), this);
         val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(NoSuchSegmentException.class)
@@ -197,6 +198,7 @@ class SegmentMetadataClientImpl implements SegmentMetadataClient {
 
     @Override
     public SegmentInfo getSegmentInfo() {
+        log.debug("getSegmentInfo called, delegationToken: {}", delegationToken);
         val future = RETRY_SCHEDULE.retryingOn(ConnectionFailedException.class)
                                    .throwingOn(NoSuchSegmentException.class)
                                    .runAsync(() -> getStreamSegmentInfo(delegationToken), connectionFactory.getInternalExecutor());

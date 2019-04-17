@@ -29,6 +29,7 @@ buildscript {
         classpath group: 'gradle.plugin.com.github.spotbugs', name: 'spotbugs-gradle-plugin', version: spotbugsPluginVersion
         classpath "org.ajoberstar:grgit:${gradleGitPluginVersion}"
         classpath "io.franzbecker:gradle-lombok:${gradleLombokPluginVersion}"
+        classpath group: 'com.github.jengelman.gradle.plugins', name:'shadow', version: shadowGradlePlugin
     }
 }
 
@@ -629,6 +630,8 @@ project('controller') {
 
 project('standalone') {
     apply plugin: 'application'
+    apply plugin: 'maven'
+    apply plugin: "com.github.johnrengelman.shadow"
     applicationName = "pravega-standalone"
     mainClassName = "io.pravega.local.LocalPravegaEmulator"
     applicationDefaultJvmArgs = ["-server", "-Xmx4g", "-XX:+HeapDumpOnOutOfMemoryError",
@@ -680,9 +683,43 @@ project('standalone') {
         runtime.exclude group: "com.sun.jersey", module: "jersey-server"
     }
 
+    // This is a workaround that seems to have worked. 
+    // https://github.com/gradle/gradle/issues/7807
+    jar.classifier = 'unshaded'
+    shadowJar.classifier = null
+
+    distZip.classifier = 'unshaded'
+    distTar.classifier = 'unshaded'
+
+    shadowDistZip.classifier = null
+    shadowDistTar.classifier = null
+
+
+    jar.configure {
+        classifier = 'unshaded'
+    }
+
+    shadowJar {
+        classifier = null
+
+        mergeServiceFiles()
+
+        relocate "com.google", "io.pravega.shaded.com.google"
+        relocate "io.dropwizard", "io.pravega.shaded.io.dropwizard"
+        relocate "io.grpc", "io.pravega.shaded.io.grpc"
+        relocate "io.netty", "io.pravega.shaded.io.netty"
+        relocate "org.apache", "io.pravega.shaded.org.apache"
+
+
+        relocate 'META-INF/native/libnetty', 'META-INF/native/libio_pravega_shaded_netty'
+        relocate 'META-INF/native/netty', 'META-INF/native/io_pravega_shaded_netty'
+    }    
+
     task startStandalone(type: JavaExec) {
-        main = "io.pravega.local.LocalPravegaEmulator"
-        classpath = sourceSets.main.runtimeClasspath
+        //main = "io.pravega.local.LocalPravegaEmulator"
+        //classpath = sourceSets.main.runtimeClasspath
+        main = "-jar"
+        args = [shadowJar.archivePath]        
         systemProperties System.getProperties()
         systemProperties 'logback.configurationFile' : new File('config/logback.xml').absolutePath
         systemProperties 'singlenode.configurationFile' : new File("config/standalone-config.properties").absolutePath
@@ -693,6 +730,15 @@ project('standalone') {
 
         jvmArgs "-Xdebug", "-Xrunjdwp:server=y,transport=dt_socket,address=8000,suspend=n"
     }
+
+    startStandalone.dependsOn shadowJar
+    installDist.dependsOn shadowJar
+    assemble.dependsOn shadowJar
+
+    artifacts {
+        archives file: shadowJar.archivePath, builtBy: shadowJar
+    }
+
 }
 
 project('test:system') {

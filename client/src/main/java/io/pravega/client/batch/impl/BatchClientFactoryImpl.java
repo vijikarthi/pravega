@@ -128,7 +128,7 @@ public class BatchClientFactoryImpl implements BatchClientFactory, io.pravega.cl
         synchronized (this) {
             latestDelegationToken.set(segments.getDelegationToken());
         }
-        log.debug("List of Segments between the start and end stream cuts : {}", segmentSet);
+        log.debug("List of Segments between the start and end stream cuts : {}, latestDelegationToken: {}", segmentSet, latestDelegationToken.get());
 
         Iterator<SegmentRange> iterator = Iterators.transform(segmentSet.iterator(),
                 s -> getSegmentRange(s, startStreamCut, endStreamCut));

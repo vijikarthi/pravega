@@ -20,6 +20,7 @@ import java.util.ServiceLoader;
 import java.util.stream.Collectors;
 import lombok.Builder;
 import lombok.Data;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -31,6 +32,7 @@ import lombok.extern.slf4j.Slf4j;
 @Data
 @Beta
 @Builder(toBuilder = true)
+@ToString
 public class ClientConfig implements Serializable {
 
     private static final long serialVersionUID = 1L;

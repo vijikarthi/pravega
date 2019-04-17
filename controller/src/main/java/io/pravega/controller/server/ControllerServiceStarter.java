@@ -164,12 +164,23 @@ public class ControllerServiceStarter extends AbstractIdleService {
                 monitor.startAsync();
             }
 
+            /*
             ClientConfig clientConfig = ClientConfig.builder()
                                                     .controllerURI(URI.create((serviceConfig.getGRPCServerConfig().get().isTlsEnabled() ?
                                                                           "tls://" : "tcp://") + "localhost"))
                                                     .trustStore(serviceConfig.getGRPCServerConfig().get().getTlsTrustStore())
                                                     .validateHostName(false)
                                                     .build();
+            */
+
+            ClientConfig clientConfig = ClientConfig.builder()
+                    .controllerURI(URI.create((serviceConfig.getGRPCServerConfig().get().isTlsEnabled() ?
+                            "tls://" : "tcp://") + "localhost:" + serviceConfig.getGRPCServerConfig().get().getPort()))
+                    .trustStore(serviceConfig.getGRPCServerConfig().get().getTlsTrustStore())
+                    .validateHostName(false)
+                    .build();
+            log.warn("Controller Client Config: {}", clientConfig);
+
 
             connectionFactory = new ConnectionFactoryImpl(clientConfig);
             SegmentHelper segmentHelper = new SegmentHelper();

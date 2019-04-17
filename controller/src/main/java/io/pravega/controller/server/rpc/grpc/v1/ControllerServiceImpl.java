@@ -408,10 +408,12 @@ public class ControllerServiceImpl extends ControllerServiceGrpc.ControllerServi
         try {
             String delegationToken;
             delegationToken = authenticator.get();
+            log.debug("authenticateExecuteAndProcessResults: delegationToken =  {}", delegationToken);
             CompletableFuture<T> result = call.apply(delegationToken);
             result.whenComplete(
                     (value, ex) -> {
                         log.debug("result =  {}", value);
+                        log.debug("authenticateExecuteAndProcessResults: result =  {}", delegationToken);
                         logAndUntrackRequestTag(requestTag);
                         if (ex != null) {
                             Throwable cause = Exceptions.unwrap(ex);

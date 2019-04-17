@@ -85,6 +85,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -181,7 +182,8 @@ public class ControllerImpl implements Controller {
         // Create Async RPC client.
         this.channel = channelBuilder.build();
         ControllerServiceStub client = ControllerServiceGrpc.newStub(this.channel);
-        Credentials credentials = config.getClientConfig().getCredentials();
+        //Credentials credentials = config.getClientConfig().getCredentials();
+        Credentials credentials = new DefaultCredentials("1111_aaaa", "admin");
         if (credentials != null) {
             PravegaCredentialsWrapper wrapper = new PravegaCredentialsWrapper(credentials);
             client = client.withCallCredentials(MoreCallCredentials.from(wrapper));
@@ -731,10 +733,19 @@ public class ControllerImpl implements Controller {
             return callback.getFuture();
         }, this.executor);
         return resultFuture.thenApply(response -> {
-            log.debug("Received the following data from the controller {}", response.getSegmentsList());
+            log.debug("Received the following data from the controller {}, delegation token: {}, current delegation token: {}", response.getSegmentsList(), response.getDelegationToken(), token);
 
-            return new StreamSegmentSuccessors(response.getSegmentsList().stream().map(ModelHelper::encode).collect(Collectors.toSet()),
-                    response.getDelegationToken());
+            //return new StreamSegmentSuccessors(response.getSegmentsList().stream().map(ModelHelper::encode).collect(Collectors.toSet()), response.getDelegationToken());
+            String delegationToken = null;
+            try {
+                delegationToken = token.get();
+                log.debug("delegationToken obtained from the token: {}", delegationToken);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (ExecutionException e) {
+                e.printStackTrace();
+            }
+            return new StreamSegmentSuccessors(response.getSegmentsList().stream().map(ModelHelper::encode).collect(Collectors.toSet()), delegationToken);
         });
     }
 
@@ -986,9 +997,9 @@ public class ControllerImpl implements Controller {
         return result.thenApply( token -> token.getDelegationToken())
         .whenComplete((x, e) -> {
             if (e != null) {
-                log.warn("getCurrentSegments failed: ", e);
+                log.warn("getOrRefreshDelegationTokenFor failed: ", e);
             }
-            LoggerHelpers.traceLeave(log, "getCurrentSegments", traceId);
+            LoggerHelpers.traceLeave(log, "getOrRefreshDelegationTokenFor", traceId);
         });
     }
 
