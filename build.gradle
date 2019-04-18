@@ -29,6 +29,11 @@ buildscript {
         classpath group: 'gradle.plugin.com.github.spotbugs', name: 'spotbugs-gradle-plugin', version: spotbugsPluginVersion
         classpath "org.ajoberstar:grgit:${gradleGitPluginVersion}"
         classpath "io.franzbecker:gradle-lombok:${gradleLombokPluginVersion}"
+
+        classpath "com.github.hierynomus.license-report:com.github.hierynomus.license-report.gradle.plugin:0.15.0"
+        classpath 'com.github.hierynomus.license:com.github.hierynomus.license.gradle.plugin:0.15.0'
+        classpath 'com.github.hierynomus.license-base:com.github.hierynomus.license-base.gradle.plugin:0.15.0'
+        classpath 'com.github.jk1:gradle-license-report:1.6'
     }
 }
 
@@ -39,6 +44,50 @@ if (project.hasProperty("enableMkdocs")) {
 // apply the plugin outside of allProjects since the plugin attempts to set the grgit property for all the projects
 // https://github.com/ajoberstar/grgit/blob/master/src/main/groovy/org/ajoberstar/grgit/gradle/GrgitPlugin.groovy#L27
 apply plugin: 'org.ajoberstar.grgit'
+
+apply plugin: 'com.github.jk1.dependency-license-report'
+apply plugin: 'com.github.hierynomus.license'
+apply plugin: 'com.github.hierynomus.license-base'
+apply plugin: 'com.github.jk1.dependency-license-report'
+
+/*
+annotationProcessor
+apiElements
+archives
+checkstyle
+compile
+compileClasspath
+compileOnly
+default
+implementation
+jacocoAgent
+jacocoAnt
+rat
+runtime
+runtimeClasspath
+runtimeElements
+runtimeOnly
+signatures
+spotbugs
+spotbugsPlugins
+testAnnotationProcessor
+testCompile
+testCompileClasspath
+testCompileOnly
+testImplementation
+testRuntime
+testRuntimeClasspath
+testRuntimeOnly
+ */
+
+downloadLicenses {
+    dependencyConfiguration 'testRuntimeOnly'
+    includeProjectDependencies true
+}
+
+licenseReport {
+    configurations = ['testRuntimeOnly']
+}
 
 allprojects {
     apply plugin: 'idea'
