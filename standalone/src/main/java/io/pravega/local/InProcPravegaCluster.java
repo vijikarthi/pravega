@@ -258,7 +258,7 @@ public class InProcPravegaCluster implements AutoCloseable {
     private void startLocalSegmentStore(int segmentStoreId) throws Exception {
         Properties authProps = new Properties();
         authProps.setProperty("pravega.client.auth.method", "Default");
-        authProps.setProperty("pravega.client.auth.userName", "arvind");
+        authProps.setProperty("pravega.client.auth.userName", "admin");
         authProps.setProperty("pravega.client.auth.password", "1111_aaaa");
 
         ServiceBuilderConfig.Builder configBuilder = ServiceBuilderConfig

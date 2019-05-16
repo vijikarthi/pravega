@@ -18,7 +18,7 @@ public class SingleNodeConfig {
     //region config names
     public final static String PROPERTY_FILE = "singlenode.configurationFile";
 
-    public final static Property<Integer> ZK_PORT = Property.named("zkPort", 4000);
+    public final static Property<Integer> ZK_PORT = Property.named("zkPort", 4001);
     public final static Property<Integer> SEGMENTSTORE_PORT = Property.named("segmentstorePort", 6000);
     public final static Property<Integer> CONTROLLER_PORT = Property.named("controllerPort", 9090);
     public final static Property<Integer> REST_SERVER_PORT = Property.named("restServerPort", 9091);

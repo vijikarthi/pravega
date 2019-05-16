@@ -21,6 +21,8 @@ import io.pravega.client.segment.impl.Segment;
 import io.pravega.client.stream.EventStreamWriter;
 import io.pravega.client.stream.EventWriterConfig;
 import io.pravega.client.stream.Serializer;
+import io.pravega.client.stream.impl.Credentials;
+import io.pravega.client.stream.impl.DefaultCredentials;
 import io.pravega.common.LoggerHelpers;
 import io.pravega.common.hash.RandomFactory;
 import io.pravega.common.tracing.TagLogger;
@@ -157,15 +159,17 @@ public class AutoScaleProcessor implements AutoCloseable {
     }
 
     private static EventStreamClientFactory createFactory(AutoScalerConfig configuration) {
+        Credentials credentials = new DefaultCredentials("1111_aaaa", "admin");
         if (configuration.isTlsEnabled()) {
             return EventStreamClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
                     ClientConfig.builder().controllerURI(configuration.getControllerUri())
+                                .credentials(credentials)
                                 .trustStore(configuration.getTlsCertFile())
                                 .validateHostName(configuration.isValidateHostName())
                                 .build());
         } else {
             return EventStreamClientFactory.withScope(NameUtils.INTERNAL_SCOPE_NAME,
-                    ClientConfig.builder().controllerURI(configuration.getControllerUri()).build());
+                    ClientConfig.builder().controllerURI(configuration.getControllerUri()).credentials(credentials).build());
         }
     }
 
